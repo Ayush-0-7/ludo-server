@@ -1,9 +1,17 @@
-// Note: Node.js uses CommonJS modules by default. We'll use a simple import/export syntax
-// that works with ES Modules, which we'll enable in the server.
-import { range, TOKENS_PER_PLAYER, TRACK_LEN, HOME_LEN, ENTRY_INDEX, HOME_ENTRY_INDEX, SAFE_INDICES } from "../config/constants.js";
+import {
+  range,
+  TOKENS_PER_PLAYER,
+  TRACK_LEN,
+  HOME_LEN,
+  ENTRY_INDEX,
+  HOME_ENTRY_INDEX,
+  SAFE_INDICES,
+} from "../config/constants.js";
 
-export const initialPlayer = (color, name = "Player", id) => ({
-  id,
+// ADDED: userId parameter to create a persistent player identity
+export const initialPlayer = (color, name = "Player", id, userId) => ({
+  id, // socket.id - ephemeral
+  userId, // persistent ID
   color,
   name,
   tokens: range(TOKENS_PER_PLAYER).map(() => ({
@@ -12,6 +20,7 @@ export const initialPlayer = (color, name = "Player", id) => ({
     relSteps: 0,
   })),
   finished: 0,
+  disconnected: false, // Track connection status
 });
 
 export function mod(a, n) {
@@ -29,14 +38,22 @@ function absoluteTrackIndex(color, relSteps) {
 export function legalMovesForPlayer(player, players, dice) {
   const moves = [];
   const { color, tokens } = player;
-  const homeEntryRelSteps = mod(HOME_ENTRY_INDEX[color] - ENTRY_INDEX[color], TRACK_LEN) + 1;
+  const homeEntryRelSteps =
+    mod(HOME_ENTRY_INDEX[color] - ENTRY_INDEX[color], TRACK_LEN) + 1;
 
   tokens.forEach((t, idx) => {
     if (t.state === "base") {
       if (dice === 6) {
         const entryAbs = ENTRY_INDEX[color];
+        // Check for blocks by *connected* opponents
         const isBlockedByOpponent = players.some(
-          (p) => p.color !== color && p.tokens.some((otherToken) => otherToken.state === "track" && otherToken.pos === entryAbs)
+          (p) =>
+            !p.disconnected &&
+            p.color !== color &&
+            p.tokens.some(
+              (otherToken) =>
+                otherToken.state === "track" && otherToken.pos === entryAbs
+            )
         );
         if (!isBlockedByOpponent) {
           moves.push({ token: idx, type: "enter" });
@@ -47,18 +64,25 @@ export function legalMovesForPlayer(player, players, dice) {
       if (nextRel < homeEntryRelSteps) {
         const toAbs = absoluteTrackIndex(color, nextRel);
         const isBlockedBySelf = tokens.some(
-            (otherToken) => otherToken.state === "track" && otherToken.pos === toAbs
+          (otherToken) =>
+            otherToken.state === "track" && otherToken.pos === toAbs
         );
         if (!isBlockedBySelf) {
-          moves.push({ token: idx, type: "advance", to: toAbs, nextRelSteps: nextRel });
+          moves.push({
+            token: idx,
+            type: "advance",
+            to: toAbs,
+            nextRelSteps: nextRel,
+          });
         }
       } else {
         const homeLanePos = nextRel - homeEntryRelSteps;
         if (homeLanePos < HOME_LEN) {
           const isBlockedBySelf = tokens.some(
-              (otherToken) => otherToken.state === "home" && otherToken.pos === homeLanePos
+            (otherToken) =>
+              otherToken.state === "home" && otherToken.pos === homeLanePos
           );
-          if(!isBlockedBySelf) {
+          if (!isBlockedBySelf) {
             moves.push({ token: idx, type: "home-lane", laneTo: homeLanePos });
           }
         } else if (homeLanePos === HOME_LEN) {
@@ -69,9 +93,9 @@ export function legalMovesForPlayer(player, players, dice) {
       const to = t.pos + dice;
       if (to < HOME_LEN) {
         const isBlockedBySelf = tokens.some(
-            (otherToken) => otherToken.state === "home" && otherToken.pos === to
+          (otherToken) => otherToken.state === "home" && otherToken.pos === to
         );
-        if(!isBlockedBySelf) {
+        if (!isBlockedBySelf) {
           moves.push({ token: idx, type: "home-advance", laneTo: to });
         }
       } else if (to === HOME_LEN) {
@@ -94,7 +118,9 @@ export function applyMove(game, pIdx, move) {
       if (op.color === player.color) return;
       op.tokens.forEach((ot) => {
         if (ot.state === "track" && ot.pos === absIndex) {
-          ot.state = "base"; ot.pos = null; ot.relSteps = 0;
+          ot.state = "base";
+          ot.pos = null;
+          ot.relSteps = 0;
           captured = true;
         }
       });
@@ -104,17 +130,23 @@ export function applyMove(game, pIdx, move) {
 
   let capturedOnMove = false;
   if (move.type === "enter") {
-    token.state = "track"; token.pos = ENTRY_INDEX[player.color]; token.relSteps = 0;
+    token.state = "track";
+    token.pos = ENTRY_INDEX[player.color];
+    token.relSteps = 0;
     capturedOnMove = captureIfAny(token.pos);
   } else if (move.type === "advance") {
-    token.pos = move.to; token.relSteps = move.nextRelSteps;
+    token.pos = move.to;
+    token.relSteps = move.nextRelSteps;
     capturedOnMove = captureIfAny(token.pos);
   } else if (move.type === "home-lane") {
-    token.state = "home"; token.pos = move.laneTo;
+    token.state = "home";
+    token.pos = move.laneTo;
   } else if (move.type === "home-advance") {
     token.pos = move.laneTo;
   } else if (move.type === "finish") {
-    token.state = "done"; token.pos = HOME_LEN; player.finished += 1;
+    token.state = "done";
+    token.pos = HOME_LEN;
+    player.finished += 1;
   }
 
   const rolledSix = g.diceValue === 6;
@@ -128,12 +160,24 @@ export function nextActivePlayerIdx(game, current) {
   if (game.extraTurn) return current;
   for (let i = 1; i <= game.players.length; i++) {
     const nextIdx = (current + i) % game.players.length;
-    if (game.players[nextIdx].finished < TOKENS_PER_PLAYER) return nextIdx;
+    // Skip players who have finished OR are disconnected
+    if (
+      game.players[nextIdx].finished < TOKENS_PER_PLAYER &&
+      !game.players[nextIdx].disconnected
+    ) {
+      return nextIdx;
+    }
   }
   return current;
 }
 
 export function getWinner(game) {
-    const finishedPlayers = game.players.filter(p => p.finished === TOKENS_PER_PLAYER);
-    return finishedPlayers.length > 0 ? finishedPlayers[0] : null;
+  const activePlayers = game.players.filter((p) => !p.disconnected);
+  if (activePlayers.length <= 1 && game.status === "playing") {
+    return activePlayers[0] || null; // Last remaining player wins
+  }
+  const finishedPlayers = game.players.filter(
+    (p) => p.finished === TOKENS_PER_PLAYER
+  );
+  return finishedPlayers.length > 0 ? finishedPlayers[0] : null;
 }
