@@ -24,6 +24,7 @@ const io = new Server(server, {
 });
 app.get("/",(req,res)=>{
   res.send("<h1>Hello World!</h1><p>This is content from your Express app.</p>");
+  console.log(db) ; 
 })
 const gameListeners = {};
 
