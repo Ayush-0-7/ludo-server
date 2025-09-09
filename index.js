@@ -14,41 +14,19 @@ import {
 } from "./logic/gameLogic.js";
 
 const app = express();
-
-// --- START: Robust CORS FIX ---
-
-// 1. Define allowed origins. This gives you more control.
-const allowedOrigins = ["https://ludo-client-iota.vercel.app"];
-
-const corsOptions = {
-    origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            return callback(new Error(msg), false);
-        }
-        return callback(null, true);
-    },
-    methods: ["GET", "POST"],
-    credentials: true
-};
-
-// 2. Use the cors middleware with these options.
-app.use(cors(corsOptions));
-
-// 3. Manually handle preflight requests.
-// This is a failsafe that explicitly tells browsers it's okay to send requests.
-app.options('*', cors(corsOptions));
-
-// --- END: Robust CORS FIX ---
-
+app.use(cors());
 const server = http.createServer(app);
-
 const io = new Server(server, {
-    cors: corsOptions // The same options are passed to Socket.IO
-});                
-
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+app.get("/", (req, res) => {
+  res.send(
+    "<h1>Hello World!</h1><p>This is content from your Express app.</p>"
+  );
+});
 const gameListeners = {};
 
 const setupGameListener = (roomId) => {
