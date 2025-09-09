@@ -16,17 +16,7 @@ if (process.env.FIREBASE_CREDENTIALS) {
 } 
 // Priority 2: Fallback to a local file for local development.
 else {
-  try {
-    // Dynamically import 'createRequire' to work with ES Modules.
-    const { createRequire } = await import('module');
-    const require = createRequire(import.meta.url);
-    serviceAccount = require('./serviceAccount.json');
-    console.log("FIREBASE_CREDENTIALS not found. Initializing Firebase using local serviceAccountKey.json file.");
-  } catch (e) {
-    console.error("Firebase Admin initialization failed. Could not find a FIREBASE_CREDENTIALS environment variable or a local serviceAccountKey.json file.", e);
-    // Exit the process with a failure code if no credentials can be found.
-    process.exit(1); 
-  }
+ console.log("Failed to parse credentials . ") ;
 }
 
 // Initialize Firebase Admin with the retrieved credentials.
