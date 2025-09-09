@@ -15,27 +15,39 @@ import {
 
 const app = express();
 
-// --- START OF FIX ---
-// 1. Explicitly define your CORS options.
+// --- START: Robust CORS FIX ---
+
+// 1. Define allowed origins. This gives you more control.
+const allowedOrigins = ["https://ludo-client-iota.vercel.app"];
+
 const corsOptions = {
-    origin: "https://ludo-client-iota.vercel.app",
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
     methods: ["GET", "POST"],
     credentials: true
 };
 
-// 2. Use the cors middleware for all incoming requests on your Express app.
-// This handles the initial HTTP handshake from Socket.IO.
+// 2. Use the cors middleware with these options.
 app.use(cors(corsOptions));
+
+// 3. Manually handle preflight requests.
+// This is a failsafe that explicitly tells browsers it's okay to send requests.
+app.options('*', cors(corsOptions));
+
+// --- END: Robust CORS FIX ---
 
 const server = http.createServer(app);
 
-// 3. Pass the same options to Socket.IO.
-// This handles the WebSocket connection itself.
 const io = new Server(server, {
-    cors: corsOptions
-});
-// --- END OF FIX ---
-                  
+    cors: corsOptions // The same options are passed to Socket.IO
+});                
 
 const gameListeners = {};
 
