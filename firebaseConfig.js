@@ -1,7 +1,6 @@
 import admin from 'firebase-admin';
 import { createRequire } from 'module';
 
-// --- START: Secure Credential Handling ---
 
 let serviceAccount;
 
@@ -16,7 +15,6 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
     serviceAccount = require('./serviceAccountKey.json');
 }
 
-// --- END: Secure Credential Handling ---
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
