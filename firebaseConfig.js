@@ -1,30 +1,34 @@
-import admin from 'firebase-admin';
+import admin from "firebase-admin";
+import { createRequire } from "module";
 
 let serviceAccount;
 
-// Priority 1: Use an environment variable that contains the raw JSON key.
+// Check if the environment variable is available (for production/deployment)
+// Decode the Base64 string to get the JSON content
 if (process.env.FIREBASE_CREDENTIALS) {
   try {
     // Parse the JSON string directly from the environment variable.
     serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-    console.log("Firebase initialized using FIREBASE_CREDENTIALS environment variable.");
+    console.log(
+      "Firebase initialized using FIREBASE_CREDENTIALS environment variable."
+    );
   } catch (e) {
-    console.error("Error parsing FIREBASE_CREDENTIALS environment variable. Make sure it is a valid JSON string with no extra characters.", e);
+    console.error(
+      "Error parsing FIREBASE_CREDENTIALS environment variable. Make sure it is a valid JSON string with no extra characters.",
+      e
+    );
     // Exit the process with a failure code if credentials are provided but invalid.
     process.exit(1);
   }
-} 
-// Priority 2: Fallback to a local file for local development.
-else {
- console.log("Failed to parse credentials . ") ;
+} else {
+  // Fallback for local development: read the file from disk
+  console.log("Check on your env file . ");
 }
 
-// Initialize Firebase Admin with the retrieved credentials.
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
 });
 
 const db = admin.firestore();
 
 export default db;
-
