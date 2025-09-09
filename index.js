@@ -22,6 +22,9 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
+app.get("/",(req,res)=>{
+  res.send("<h1>Hello World!</h1><p>This is content from your Express app.</p>");
+})
 const gameListeners = {};
 
 const setupGameListener = (roomId) => {
