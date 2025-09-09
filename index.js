@@ -14,14 +14,28 @@ import {
 } from "./logic/gameLogic.js";
 
 const app = express();
-app.use(cors());
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
+
+// --- START OF FIX ---
+// 1. Explicitly define your CORS options.
+const corsOptions = {
     origin: "https://ludo-client-iota.vercel.app",
     methods: ["GET", "POST"],
-  },
+    credentials: true
+};
+
+// 2. Use the cors middleware for all incoming requests on your Express app.
+// This handles the initial HTTP handshake from Socket.IO.
+app.use(cors(corsOptions));
+
+const server = http.createServer(app);
+
+// 3. Pass the same options to Socket.IO.
+// This handles the WebSocket connection itself.
+const io = new Server(server, {
+    cors: corsOptions
 });
+// --- END OF FIX ---
+                  
 
 const gameListeners = {};
 
